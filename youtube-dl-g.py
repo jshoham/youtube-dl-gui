@@ -2,12 +2,18 @@ __author__ = 'Jake'
 
 from Tkinter import *
 import ttk
+import os
 import youtube_dl
 import traceback
+
 
 class YoutubeDLApp(Tk):
     def __init__(self, *args, **kwargs):
         self.ydl_opts = {}
+        #default save location
+        DEFAULT_DOWNLOAD_PATH = os.path.join(os.path.expandvars('%userprofile%'), 'downloads')
+        self.ydl_opts['outtmpl'] = '{}\%(title)s.%(ext)s'.format(DEFAULT_DOWNLOAD_PATH)
+        self.ydl_opts['ignoreerrors'] = True
 
         Tk.__init__(self, *args, **kwargs)
         self.title("YoutubeDL")
@@ -24,9 +30,6 @@ class YoutubeDLApp(Tk):
         self.frames[OptionsPage] = OptionsPage(container, self)
 
         self.show_frame(StartPage)
-
-
-
 
     def show_frame(self, cont):
         frame = self.frames[cont]
@@ -65,41 +68,50 @@ class StartPage(Frame):
         # Test checkbox
         self.test_opt = BooleanVar()
         test_checkbox = ttk.Checkbutton(self, text='test run', variable=self.test_opt, style='TCheckbutton',
-                                        command= lambda: self.test_changed(controller))
+                                        command=lambda: self.test_changed(controller))
         test_checkbox.grid(row=6, column=0, columnspan=3)
 
     def audio_changed(self, controller):
         if self.audio_opt.get():
-            print 'audio set to true (mp3)'
+            print 'Extract audio turned on (mp3)'
             controller.ydl_opts['format'] = 'bestaudio/best'
-            postprocessors = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
-            controller.ydl_opts['postprocessors'] = postprocessors
+            controller.ydl_opts['writethumbnail'] = True
+            if not 'postprocessors' in controller.ydl_opts:
+                controller.ydl_opts['postprocessors'] = []
+            controller.ydl_opts['postprocessors'].extend([{'key': 'FFmpegExtractAudio',
+                                                      'preferredcodec': 'mp3'},
+                                                     {'key': 'EmbedThumbnail'}])
+            #print 'after {}'.format(controller.ydl_opts['postprocessors'])
 
         else:
-            print 'audio set to false'
+            print 'Extract audio turned off'
             del controller.ydl_opts['format']
-            del controller.ydl_opts['postprocessors']
-
+            del controller.ydl_opts['writethumbnail']
+            #print 'before {}'.format(controller.ydl_opts['postprocessors'])
+            controller.ydl_opts['postprocessors'].remove({'key': 'FFmpegExtractAudio',
+                                                          'preferredcodec': 'mp3'})
+            controller.ydl_opts['postprocessors'].remove({'key': 'EmbedThumbnail'})
+            #print 'after {}'.format(controller.ydl_opts['postprocessors'])
 
     def test_changed(self, controller):
         if self.test_opt.get():
-            print 'test mode turned on'
-            controller.ydl_opts['simulate'] = 'True'
+            print 'test mode turned on. (Doesnt do anything yet)'
+
         else:
             print 'test mode turned off'
-            del controller.ydl_opts['simulate']
 
 
     def go_button(self, controller):
         url = self.url_entry.get()
         try:
-            print controller.ydl_opts
+            print 'using options: {}'.format(controller.ydl_opts)
             with youtube_dl.YoutubeDL(controller.ydl_opts) as ydl:
                 ydl.download([url])
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
-            traceback.print_exception(exc_type, exc_value, exc_traceback, limit=2, file=sys.stdout)
+            traceback.print_tb(exc_traceback)
+            traceback.print_exception(exc_type, exc_value, exc_traceback)
+
 
 class OptionsPage(Frame):
     def __init__(self, parent, controller):
@@ -112,7 +124,6 @@ class OptionsPage(Frame):
         home_button.grid(row=0, column=2, sticky=NE)
         page_label = Label(self, text='Options', background='white')
         page_label.grid()
-
 
 
 app = YoutubeDLApp()
